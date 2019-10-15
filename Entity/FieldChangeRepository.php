@@ -48,11 +48,11 @@ class FieldChangeRepository extends CommonRepository
     /**
      * Takes an object id & type and deletes all entities that match.
      *
-     * @param int         $objectId
+     * @param int|string         $objectId
      * @param string      $objectType
      * @param string|null $integration
      */
-    public function deleteEntitiesForObject(int $objectId, string $objectType, ?string $integration = null): void
+    public function deleteEntitiesForObject($objectId, string $objectType, ?string $integration = null): void
     {
         $qb = $this->getEntityManager()->getConnection()->createQueryBuilder();
 

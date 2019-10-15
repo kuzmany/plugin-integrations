@@ -60,9 +60,9 @@ class ObjectIdsDAO
 
     /**
      * @param string $objectType
-     * @param string $id
+     * @param int|string $id
      */
-    public function addObjectId(string $objectType, string $id): void
+    public function addObjectId(string $objectType, $id): void
     {
         if (!isset($this->objects[$objectType])) {
             $this->objects[$objectType] = [];
