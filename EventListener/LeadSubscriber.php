@@ -123,6 +123,11 @@ class LeadSubscriber extends CommonSubscriber
      */
     public function onLeadPostDelete(Events\LeadEvent $event): void
     {
+        if (!$this->syncIntegrationsHelper->hasObjectSyncEnabled(MauticSyncDataExchange::OBJECT_CONTACT)) {
+            // Only track if an integration is syncing with contacts
+            return;
+        }
+
         $this->fieldChangeRepo->deleteEntitiesForObject((int) $event->getLead()->deletedId, Lead::class);
     }
 
@@ -159,6 +164,10 @@ class LeadSubscriber extends CommonSubscriber
      */
     public function onCompanyPostDelete(Events\CompanyEvent $event): void
     {
+        if (!$this->syncIntegrationsHelper->hasObjectSyncEnabled(MauticSyncDataExchange::OBJECT_COMPANY)) {
+            // Only track if an integration is syncing with companies
+            return;
+        }
         $this->fieldChangeRepo->deleteEntitiesForObject((int) $event->getCompany()->deletedId, Company::class);
     }
 
