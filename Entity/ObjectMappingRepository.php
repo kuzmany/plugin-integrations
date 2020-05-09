@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Contributors. All rights reserved
  * @author      Mautic, Inc.
@@ -11,10 +13,10 @@
 
 namespace MauticPlugin\IntegrationsBundle\Entity;
 
-
+use Doctrine\DBAL\Connection;
 use Mautic\CoreBundle\Entity\CommonRepository;
 
-class ObjectMappingRepository  extends CommonRepository
+class ObjectMappingRepository extends CommonRepository
 {
     /**
      * @param $integration
@@ -44,7 +46,7 @@ class ObjectMappingRepository  extends CommonRepository
 
         $result = $qb->execute()->fetch();
 
-        return $result ? $result : null;
+        return $result ?: null;
     }
 
     /**
@@ -75,7 +77,7 @@ class ObjectMappingRepository  extends CommonRepository
 
         $result = $qb->execute()->fetch();
 
-        return $result ? $result : null;
+        return $result ?: null;
     }
 
     /**
@@ -91,7 +93,7 @@ class ObjectMappingRepository  extends CommonRepository
     {
         $qb = $this->getEntityManager()->getConnection()->createQueryBuilder();
 
-        $qb->update(MAUTIC_TABLE_PREFIX.'sync_object_mapping')
+        $qb->update(MAUTIC_TABLE_PREFIX.'sync_object_mapping', 'i')
             ->set('integration_object_name', ':newObjectName')
             ->set('integration_object_id', ':newObjectId')
             ->where(
@@ -107,32 +109,38 @@ class ObjectMappingRepository  extends CommonRepository
             ->setParameter('oldObjectName', $oldObjectName)
             ->setParameter('oldObjectId', $oldObjectId);
 
-        return $qb->execute()->rowCount();
+        return $qb->execute();
     }
 
     /**
      * @param $integration
      * @param $objectName
-     * @param $objectId
+     * @param string[]|string $objectIds
      *
      * @return \Doctrine\DBAL\Driver\Statement|int
      */
-    public function markAsDeleted($integration, $objectName, $objectId)
+    public function markAsDeleted(string $integration, string $objectName, $objectIds): int
     {
         $qb = $this->getEntityManager()->getConnection()->createQueryBuilder();
 
-        $qb->update(MAUTIC_TABLE_PREFIX.'sync_object_mapping','m')
+        $qb->update(MAUTIC_TABLE_PREFIX.'sync_object_mapping', 'm')
             ->set('is_deleted', 1)
             ->where(
                 $qb->expr()->andX(
                     $qb->expr()->eq('m.integration', ':integration'),
-                    $qb->expr()->eq('m.integration_object_name', ':objectName'),
-                    $qb->expr()->eq('m.integration_object_id', ':objectId')
+                    $qb->expr()->eq('m.integration_object_name', ':objectName')
                 )
             )
             ->setParameter('integration', $integration)
-            ->setParameter('objectName', $objectName)
-            ->setParameter('objectId', $objectId);
+            ->setParameter('objectName', $objectName);
+
+        if (is_array($objectIds)) {
+            $qb->setParameter('objectId', $objectIds, Connection::PARAM_STR_ARRAY);
+            $qb->andWhere($qb->expr()->in('m.integration_object_id', ':objectId'));
+        } else {
+            $qb->setParameter('objectId', $objectIds);
+            $qb->andWhere($qb->expr()->eq('m.integration_object_id', ':objectId'));
+        }
 
         return $qb->execute();
     }
@@ -158,7 +166,7 @@ class ObjectMappingRepository  extends CommonRepository
      *
      * @return ObjectMapping[]
      */
-    public function getIntegrationMappingsForInternalObject(string $internalObject, int $internalObjectId)
+    public function getIntegrationMappingsForInternalObject(string $internalObject, int $internalObjectId): array
     {
         $qb = $this->createQueryBuilder('m');
         $qb->select('m')

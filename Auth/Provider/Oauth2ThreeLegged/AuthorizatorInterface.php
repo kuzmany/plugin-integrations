@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Contributors. All rights reserved
  * @author      Mautic
@@ -13,6 +15,9 @@ namespace MauticPlugin\IntegrationsBundle\Auth\Provider\Oauth2ThreeLegged;
 
 use Symfony\Component\HttpFoundation\Request;
 
+/**
+ * @deprecated; Use Credentials\CredentialsInterface and \MauticPlugin\IntegrationsBundle\Integration\Interfaces\AuthenticationInterface instead
+ */
 interface AuthorizatorInterface
 {
     /**
@@ -22,8 +27,6 @@ interface AuthorizatorInterface
 
     /**
      * @return string
-     *
-     * @throws \MauticPlugin\IntegrationsBundle\Exception\IntegrationNotFoundException
      */
     public function getAccessToken(): string;
 

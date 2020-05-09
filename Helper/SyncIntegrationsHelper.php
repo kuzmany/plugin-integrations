@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -16,7 +18,7 @@ use MauticPlugin\IntegrationsBundle\Integration\Interfaces\ConfigFormFeaturesInt
 use MauticPlugin\IntegrationsBundle\Integration\Interfaces\SyncInterface;
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Mapping\MappingManualDAO;
 use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotFoundException;
-use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\MauticSyncDataExchange;
+use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectProvider;
 use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\SyncDataExchangeInterface;
 
 class SyncIntegrationsHelper
@@ -37,19 +39,24 @@ class SyncIntegrationsHelper
     private $integrationsHelper;
 
     /**
-     * SyncIntegrationsHelper constructor.
-     *
-     * @param IntegrationsHelper $integrationsHelper
+     * @var ObjectProvider
      */
-    public function __construct(IntegrationsHelper $integrationsHelper)
+    private $objectProvider;
+
+    /**
+     * @param IntegrationsHelper $integrationsHelper
+     * @param ObjectProvider     $objectProvider
+     */
+    public function __construct(IntegrationsHelper $integrationsHelper, ObjectProvider $objectProvider)
     {
         $this->integrationsHelper = $integrationsHelper;
+        $this->objectProvider     = $objectProvider;
     }
 
     /**
      * @param SyncInterface $integration
      */
-    public function addIntegration(SyncInterface $integration)
+    public function addIntegration(SyncInterface $integration): void
     {
         $this->integrations[$integration->getName()] = $integration;
     }
@@ -105,11 +112,10 @@ class SyncIntegrationsHelper
      * @throws IntegrationNotFoundException
      * @throws ObjectNotFoundException
      */
-    public function hasObjectSyncEnabled(string $mauticObject)
+    public function hasObjectSyncEnabled(string $mauticObject): bool
     {
-        if (MauticSyncDataExchange::OBJECT_CONTACT !== $mauticObject && MauticSyncDataExchange::OBJECT_COMPANY !== $mauticObject) {
-            throw new ObjectNotFoundException($mauticObject);
-        }
+        // Ensure the internal object exists.
+        $this->objectProvider->getObjectByName($mauticObject);
 
         $enabledIntegrations = $this->getEnabledIntegrations();
 

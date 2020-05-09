@@ -14,13 +14,18 @@ declare(strict_types=1);
 namespace MauticPlugin\IntegrationsBundle\Auth\Provider\Oauth2ThreeLegged;
 
 use GuzzleHttp\ClientInterface;
+use MauticPlugin\IntegrationsBundle\Auth\Provider\AuthConfigInterface;
+use MauticPlugin\IntegrationsBundle\Auth\Provider\AuthCredentialsInterface;
 use MauticPlugin\IntegrationsBundle\Auth\Provider\AuthProviderInterface;
 use MauticPlugin\IntegrationsBundle\Exception\PluginNotConfiguredException;
 
 /**
- * Factory for building HTTP clients that will sign the requests with Oauth1a headers.
- * Based on Guzzle OAuth 2.0 Subscriber - kamermans/guzzle-oauth2-subscriber package
+ * Factory for building HTTP clients that will sign the requests with Oauth2 headers.
+ * Based on Guzzle OAuth 2.0 Subscriber - kamermans/guzzle-oauth2-subscriber package.
+ *
  * @see https://github.com/kamermans/guzzle-oauth2-subscriber
+ *
+ * @deprecated; use MauticPlugin\IntegrationsBundle\Auth\Provider\Oauth2ThreeLegged\HttpFactory
  */
 abstract class AbstractClientFactory implements AuthProviderInterface
 {
@@ -35,12 +40,14 @@ abstract class AbstractClientFactory implements AuthProviderInterface
     }
 
     /**
-     * @param CredentialsInterface $credentials
+     * @param AuthCredentialsInterface|CredentialsInterface $credentials
+     * @param AuthConfigInterface|null                      $config
      *
      * @return ClientInterface
+     *
      * @throws PluginNotConfiguredException
      */
-    public function getClient($credentials): ClientInterface
+    public function getClient(AuthCredentialsInterface $credentials, ?AuthConfigInterface $config = null): ClientInterface
     {
         if (!$this->credentialsAreConfigured($credentials)) {
             throw new PluginNotConfiguredException('Oauth2 credentials are not configured');

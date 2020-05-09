@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -11,14 +13,16 @@
 
 namespace MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\Executioner;
 
-
+use MauticPlugin\IntegrationsBundle\Event\InternalObjectCreateEvent;
+use MauticPlugin\IntegrationsBundle\Event\InternalObjectUpdateEvent;
+use MauticPlugin\IntegrationsBundle\IntegrationEvents;
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Order\OrderDAO;
-use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotSupportedException;
+use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotFoundException;
 use MauticPlugin\IntegrationsBundle\Sync\Helper\MappingHelper;
 use MauticPlugin\IntegrationsBundle\Sync\Logger\DebugLogger;
-use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectHelper\CompanyObjectHelper;
-use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectHelper\ContactObjectHelper;
+use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectProvider;
 use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\MauticSyncDataExchange;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 class OrderExecutioner
 {
@@ -28,81 +32,59 @@ class OrderExecutioner
     private $mappingHelper;
 
     /**
-     * @var ContactObjectHelper
+     * @var EventDispatcherInterface
      */
-    private $contactObjectHelper;
+    private $dispatcher;
 
     /**
-     * @var CompanyObjectHelper
+     * @var ObjectProvider
      */
-    private $companyObjectHelper;
+    private $objectProvider;
 
     /**
-     * @var OrderDAO
+     * @param MappingHelper            $mappingHelper
+     * @param EventDispatcherInterface $dispatcher
+     * @param ObjectProvider           $objectProvider
      */
-    private $syncOrder;
-
-    /**
-     * OrderExecutioner constructor.
-     *
-     * @param MappingHelper       $mappingHelper
-     * @param ContactObjectHelper $contactObjectHelper
-     * @param CompanyObjectHelper $companyObjectHelper
-     */
-    public function __construct(MappingHelper $mappingHelper, ContactObjectHelper $contactObjectHelper, CompanyObjectHelper $companyObjectHelper)
-    {
-        $this->mappingHelper       = $mappingHelper;
-        $this->contactObjectHelper = $contactObjectHelper;
-        $this->companyObjectHelper = $companyObjectHelper;
+    public function __construct(
+        MappingHelper $mappingHelper,
+        EventDispatcherInterface $dispatcher,
+        ObjectProvider $objectProvider
+    ) {
+        $this->mappingHelper  = $mappingHelper;
+        $this->dispatcher     = $dispatcher;
+        $this->objectProvider = $objectProvider;
     }
 
     /**
      * @param OrderDAO $syncOrderDAO
      */
-    public function execute(OrderDAO $syncOrderDAO)
+    public function execute(OrderDAO $syncOrderDAO): void
     {
-        $this->syncOrder = $syncOrderDAO;
+        $identifiedObjects   = $syncOrderDAO->getIdentifiedObjects();
+        $unidentifiedObjects = $syncOrderDAO->getUnidentifiedObjects();
 
-        $identifiedObjects = $syncOrderDAO->getIdentifiedObjects();
         foreach ($identifiedObjects as $objectName => $updateObjects) {
-            try {
-                $this->updateObjects($objectName, $updateObjects);
-            } catch (ObjectNotSupportedException $exception) {
-                DebugLogger::log(
-                    MauticSyncDataExchange::NAME,
-                    $exception->getMessage(),
-                    __CLASS__.':'.__FUNCTION__
-                );
-            }
+            $this->updateObjects($objectName, $updateObjects, $syncOrderDAO);
         }
 
-        $unidentifiedObjects = $syncOrderDAO->getUnidentifiedObjects();
         foreach ($unidentifiedObjects as $objectName => $createObjects) {
-            try {
-                $this->createObjects($objectName, $createObjects);
-            } catch (ObjectNotSupportedException $exception) {
-                DebugLogger::log(
-                    MauticSyncDataExchange::NAME,
-                    $exception->getMessage(),
-                    __CLASS__.':'.__FUNCTION__
-                );
-            }
+            $this->createObjects($objectName, $createObjects);
         }
     }
 
     /**
-     * @param string $objectName
-     * @param        $updateObjects
-     *
-     * @throws ObjectNotSupportedException
+     * @param string   $objectName
+     * @param array    $updateObjects
+     * @param OrderDAO $syncOrderDAO
      */
-    private function updateObjects(string $objectName, array $updateObjects)
+    private function updateObjects(string $objectName, array $updateObjects, OrderDAO $syncOrderDAO): void
     {
         $updateCount = count($updateObjects);
         DebugLogger::log(
             MauticSyncDataExchange::NAME,
             sprintf(
-                "Updating %d %s object(s)",
+                'Updating %d %s object(s)',
                 $updateCount,
                 $objectName
             ),
@@ -113,36 +95,36 @@ class OrderExecutioner
             return;
         }
 
-        $identifiedObjectIds = $this->syncOrder->getIdentifiedObjectIds($objectName);
-
-        switch ($objectName) {
-            case MauticSyncDataExchange::OBJECT_CONTACT:
-                $updatedObjectMappings = $this->contactObjectHelper->update($identifiedObjectIds, $updateObjects);
-                break;
-            case MauticSyncDataExchange::OBJECT_COMPANY:
-                $updatedObjectMappings = $this->companyObjectHelper->update($identifiedObjectIds, $updateObjects);
-                break;
-            default:
-                throw new ObjectNotSupportedException(MauticSyncDataExchange::NAME, $objectName);
+        try {
+            $event = new InternalObjectUpdateEvent(
+                $this->objectProvider->getObjectByName($objectName),
+                $syncOrderDAO->getIdentifiedObjectIds($objectName),
+                $updateObjects
+            );
+        } catch (ObjectNotFoundException $e) {
+            DebugLogger::log(
+                MauticSyncDataExchange::NAME,
+                $objectName,
+                __CLASS__.':'.__FUNCTION__
+            );
         }
 
-        $this->mappingHelper->updateObjectMappings($updatedObjectMappings);
+        $this->dispatcher->dispatch(IntegrationEvents::INTEGRATION_UPDATE_INTERNAL_OBJECTS, $event);
+        $this->mappingHelper->updateObjectMappings($event->getUpdatedObjectMappings());
     }
 
     /**
      * @param string $objectName
      * @param array  $createObjects
-     *
-     * @throws ObjectNotSupportedException
      */
-    private function createObjects(string $objectName, array $createObjects)
+    private function createObjects(string $objectName, array $createObjects): void
     {
         $createCount = count($createObjects);
 
         DebugLogger::log(
             MauticSyncDataExchange::NAME,
             sprintf(
-                "Creating %d %s object(s)",
+                'Creating %d %s object(s)',
                 $createCount,
                 $objectName
             ),
@@ -153,17 +135,20 @@ class OrderExecutioner
             return;
         }
 
-        switch ($objectName) {
-            case MauticSyncDataExchange::OBJECT_CONTACT:
-                $objectMappings = $this->contactObjectHelper->create($createObjects);
-                break;
-            case MauticSyncDataExchange::OBJECT_COMPANY:
-                $objectMappings = $this->companyObjectHelper->create($createObjects);
-                break;
-            default:
-                throw new ObjectNotSupportedException(MauticSyncDataExchange::NAME, $objectName);
+        try {
+            $event = new InternalObjectCreateEvent(
+                $this->objectProvider->getObjectByName($objectName),
+                $createObjects
+            );
+        } catch (ObjectNotFoundException $e) {
+            DebugLogger::log(
+                MauticSyncDataExchange::NAME,
+                $objectName,
+                __CLASS__.':'.__FUNCTION__
+            );
         }
 
-        $this->mappingHelper->saveObjectMappings($objectMappings);
+        $this->dispatcher->dispatch(IntegrationEvents::INTEGRATION_CREATE_INTERNAL_OBJECTS, $event);
+        $this->mappingHelper->saveObjectMappings($event->getObjectMappings());
     }
 }

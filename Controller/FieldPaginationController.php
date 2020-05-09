@@ -15,17 +15,16 @@ namespace MauticPlugin\IntegrationsBundle\Controller;
 
 use Mautic\CoreBundle\Controller\CommonController;
 use MauticPlugin\IntegrationsBundle\Exception\IntegrationNotFoundException;
-use MauticPlugin\IntegrationsBundle\Form\Type\FilteredFieldsTrait;
 use MauticPlugin\IntegrationsBundle\Form\Type\IntegrationSyncSettingsObjectFieldMappingType;
 use MauticPlugin\IntegrationsBundle\Helper\ConfigIntegrationsHelper;
+use MauticPlugin\IntegrationsBundle\Helper\FieldFilterHelper;
+use MauticPlugin\IntegrationsBundle\Helper\FieldMergerHelper;
 use MauticPlugin\IntegrationsBundle\Integration\Interfaces\ConfigFormSyncInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class FieldPaginationController extends CommonController
 {
-    use FilteredFieldsTrait;
-
     /**
      * @param string  $integration
      * @param string  $object
@@ -44,6 +43,7 @@ class FieldPaginationController extends CommonController
         // Find the integration
         /** @var ConfigIntegrationsHelper $integrationsHelper */
         $integrationsHelper = $this->get('mautic.integrations.helper.config_integrations');
+
         try {
             /** @var ConfigFormSyncInterface $integrationObject */
             $integrationObject        = $integrationsHelper->getIntegration($integration);
@@ -54,19 +54,24 @@ class FieldPaginationController extends CommonController
 
         $keyword         = $request->get('keyword');
         $featureSettings = $integrationConfiguration->getFeatureSettings();
-        $currentFields   = $this->getFields($featureSettings, $integration, $object);
+        $currentFields   = $this->getFields($integrationObject, $featureSettings, $object);
 
-        $this->filterFields($integrationObject, $object, $keyword, $page);
+        $fieldFilterHelper = new FieldFilterHelper($integrationObject);
+        if ($keyword) {
+            $fieldFilterHelper->filterFieldsByKeyword($object, $keyword, $page);
+        } else {
+            $fieldFilterHelper->filterFieldsByPage($object, $page);
+        }
 
         // Create the form
         $form = $this->get('form.factory')->create(
             IntegrationSyncSettingsObjectFieldMappingType::class,
             $currentFields,
             [
-                'integrationFields' => $this->getFilteredFields(),
+                'integrationFields' => $fieldFilterHelper->getFilteredFields(),
                 'page'              => $page,
                 'keyword'           => $keyword,
-                'totalFieldCount'   => $this->getTotalFieldCount(),
+                'totalFieldCount'   => $fieldFilterHelper->getTotalFieldCount(),
                 'object'            => $object,
                 'integrationObject' => $integrationObject,
                 'csrf_protection'   => false,
@@ -85,7 +90,7 @@ class FieldPaginationController extends CommonController
 
         $prefix   = "integration_config[featureSettings][sync][fieldMappings][$object]";
         $idPrefix = str_replace(['][', '[', ']'], '_', $prefix);
-        if (substr($idPrefix, -1) == '_') {
+        if ('_' == substr($idPrefix, -1)) {
             $idPrefix = substr($idPrefix, 0, -1);
         }
 
@@ -101,25 +106,25 @@ class FieldPaginationController extends CommonController
         );
     }
 
-    /**
-     * @param array  $featureSettings
-     * @param string $integration
-     * @param string $object
-     *
-     * @return array
-     */
-    private function getFields(array $featureSettings, string $integration, string $object): array
+    private function getFields(ConfigFormSyncInterface $integrationObject, array $featureSettings, string $object): array
     {
-        $fields = (isset($featureSettings['sync']['fieldMappings'][$object])) ? $featureSettings['sync']['fieldMappings'][$object] : [];
+        $fields = $featureSettings['sync']['fieldMappings'] ?? [];
+
+        if (!isset($fields[$object])) {
+            $fields[$object] = [];
+        }
 
         // Pull those changed from session
         $session       = $this->get('session');
-        $sessionFields = $session->get(sprintf("%s-fields", $integration), []);
+        $sessionFields = $session->get(sprintf('%s-fields', $integrationObject->getName()), []);
 
         if (!isset($sessionFields[$object])) {
-            return $fields;
+            return $fields[$object];
         }
 
-        return array_merge_recursive($fields, $sessionFields[$object]);
+        $fieldMerger = new FieldMergerHelper($integrationObject, $fields);
+        $fieldMerger->mergeSyncFieldMapping($object, $sessionFields[$object]);
+
+        return $fieldMerger->getFieldMappings()[$object];
     }
 }

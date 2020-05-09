@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic, Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -11,25 +13,36 @@
 
 namespace MauticPlugin\IntegrationsBundle\Controller;
 
-
 use Mautic\CoreBundle\Controller\CommonController;
 use MauticPlugin\IntegrationsBundle\Exception\IntegrationNotFoundException;
+use MauticPlugin\IntegrationsBundle\Exception\UnauthorizedException;
+use MauticPlugin\IntegrationsBundle\Helper\AuthIntegrationsHelper;
 use Symfony\Component\HttpFoundation\Request;
 
 class AuthController extends CommonController
 {
     public function callbackAction(string $integration, Request $request)
     {
-        // Find the integration
+        /** @var AuthIntegrationsHelper $authIntegrationsHelper */
         $authIntegrationsHelper = $this->get('mautic.integrations.helper.auth_integrations');
+        $authenticationError    = false;
+
         try {
-            $authIntegrationsHelper->getIntegration($integration);
+            $authIntegration = $authIntegrationsHelper->getIntegration($integration);
+            $message         = $authIntegration->authenticateIntegration($request);
+        } catch (UnauthorizedException $exception) {
+            $message             = $exception->getMessage();
+            $authenticationError = true;
         } catch (IntegrationNotFoundException $exception) {
             return $this->notFound();
         }
 
-        if (Request::METHOD_POST === $request->getMethod()) {
-
-        }
+        return $this->render(
+            'IntegrationsBundle:Auth:authenticated.html.php',
+            [
+                'message'             => $message,
+                'authenticationError' => $authenticationError,
+            ]
+        );
     }
 }

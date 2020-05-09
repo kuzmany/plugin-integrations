@@ -1,6 +1,6 @@
 Mautic.integrationsConfigOnLoad = function () {
     mQuery('.integration-keyword-filter').each(function() {
-        mQuery(this).on("keydown", function (event) {
+        mQuery(this).off("keydown.integration-filter").on("keydown.integration-filter", function (event) {
             if (event.which == 13) {
                 var integration = mQuery(this).attr('data-integration');
                 var object = mQuery(this).attr('data-object');
@@ -114,7 +114,7 @@ Mautic.updateIntegrationField = function(integration, object, field, fieldOption
 
 Mautic.activateIntegrationFieldUpdateActions = function () {
     mQuery('.integration-mapped-field').each(function() {
-        mQuery(this).on("change", function (event) {
+        mQuery(this).off("change.integration-mapped-field").on("change.integration-mapped-field", function (event) {
             var integration = mQuery(this).attr('data-integration');
             var object = mQuery(this).attr('data-object');
             var field = mQuery(this).attr('data-field');
@@ -123,11 +123,16 @@ Mautic.activateIntegrationFieldUpdateActions = function () {
     });
 
     mQuery('.integration-sync-direction').each(function() {
-        mQuery(this).on("change", function (event) {
+        mQuery(this).off("change.integration-sync-direction").on("change.integration-sync-direction", function (event) {
             var integration = mQuery(this).attr('data-integration');
             var object = mQuery(this).attr('data-object');
             var field = mQuery(this).attr('data-field');
             Mautic.updateIntegrationField(integration, object, field, 'syncDirection', mQuery(this).val());
         });
     });
+};
+
+Mautic.authorizeIntegration = function () {
+    mQuery('#integration_details_in_auth').val(1);
+    Mautic.postForm(mQuery('form[name="integration_config"]'), 'loadIntegrationAuthWindow');
 };

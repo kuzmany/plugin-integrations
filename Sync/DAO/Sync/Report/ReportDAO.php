@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -13,12 +15,10 @@ namespace MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Report;
 
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Mapping\RemappedObjectDAO;
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\InformationChangeRequestDAO;
+use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\RelationsDAO;
 use MauticPlugin\IntegrationsBundle\Sync\Exception\FieldNotFoundException;
 use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotFoundException;
 
-/**
- * Class ReportDAO
- */
 class ReportDAO
 {
     /**
@@ -37,13 +37,17 @@ class ReportDAO
     private $remappedObjects = [];
 
     /**
-     * SyncReportDAO constructor.
-     *
+     * @var RelationsDAO
+     */
+    private $relationsDAO;
+
+    /**
      * @param $integration
      */
     public function __construct($integration)
     {
-        $this->integration = $integration;
+        $this->integration     = $integration;
+        $this->relationsDAO    = new RelationsDAO();
     }
 
     /**
@@ -76,7 +80,7 @@ class ReportDAO
      * @param string $newObjectName
      * @param mixed  $newObjectId
      */
-    public function remapObject($oldObjectName, $oldObjectId, $newObjectName, $newObjectId = null)
+    public function remapObject($oldObjectName, $oldObjectId, $newObjectName, $newObjectId = null): void
     {
         if (null === $newObjectId) {
             $newObjectId = $oldObjectId;
@@ -91,13 +95,14 @@ class ReportDAO
      * @param $fieldName
      *
      * @return InformationChangeRequestDAO
+     *
      * @throws ObjectNotFoundException
      * @throws FieldNotFoundException
      */
     public function getInformationChangeRequest($objectName, $objectId, $fieldName)
     {
         if (empty($this->objects[$objectName][$objectId])) {
-            throw new ObjectNotFoundException($objectName.":".$objectId);
+            throw new ObjectNotFoundException($objectName.':'.$objectId);
         }
 
         /** @var ObjectDAO $reportObject */
@@ -171,5 +176,13 @@ class ReportDAO
     public function shouldSync()
     {
         return !empty($this->objects);
+    }
+
+    /**
+     * @return RelationsDAO
+     */
+    public function getRelations(): RelationsDAO
+    {
+        return $this->relationsDAO;
     }
 }

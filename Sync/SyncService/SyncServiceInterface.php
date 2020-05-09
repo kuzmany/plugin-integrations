@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -11,21 +13,12 @@
 
 namespace MauticPlugin\IntegrationsBundle\Sync\SyncService;
 
-/**
- * Interface SyncServiceInterface
- */
+use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\InputOptionsDAO;
+
 interface SyncServiceInterface
 {
     /**
-     * @param string                  $integration
-     * @param bool                    $firstTimeSync
-     * @param \DateTimeInterface|null $syncFromDateTime
-     * @param \DateTimeInterface|null $syncToDateTime
+     * @param InputOptionsDAO $inputOptionsDAO
      */
-    public function processIntegrationSync(
-        string $integration,
-        $firstTimeSync,
-        \DateTimeInterface $syncFromDateTime = null,
-        \DateTimeInterface $syncToDateTime = null
-    );
+    public function processIntegrationSync(InputOptionsDAO $inputOptionsDAO);
 }

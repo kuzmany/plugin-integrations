@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -11,22 +13,20 @@
 
 namespace MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ReportBuilder;
 
-
-use Mautic\LeadBundle\Entity\Company;
-use Mautic\LeadBundle\Entity\Lead;
 use MauticPlugin\IntegrationsBundle\Entity\FieldChangeRepository;
+use MauticPlugin\IntegrationsBundle\Event\InternalObjectFindEvent;
+use MauticPlugin\IntegrationsBundle\IntegrationEvents;
+use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Report\ObjectDAO as ReportObjectDAO;
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Report\ReportDAO;
+use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Request\ObjectDAO as RequestObjectDAO;
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Request\RequestDAO;
 use MauticPlugin\IntegrationsBundle\Sync\Exception\FieldNotFoundException;
 use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotFoundException;
-use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotSupportedException;
 use MauticPlugin\IntegrationsBundle\Sync\Logger\DebugLogger;
 use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Helper\FieldHelper;
-use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectHelper\CompanyObjectHelper;
-use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectHelper\ContactObjectHelper;
+use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectProvider;
 use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\MauticSyncDataExchange;
-use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Report\ObjectDAO AS ReportObjectDAO;
-use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Request\ObjectDAO as RequestObjectDAO;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 class PartialObjectReportBuilder
 {
@@ -39,16 +39,6 @@ class PartialObjectReportBuilder
      * @var FieldHelper
      */
     private $fieldHelper;
-
-    /**
-     * @var ContactObjectHelper
-     */
-    private $contactObjectHelper;
-
-    /**
-     * @var CompanyObjectHelper
-     */
-    private $companyObjectHelper;
 
     /**
      * @var FieldBuilder
@@ -76,26 +66,34 @@ class PartialObjectReportBuilder
     private $syncReport;
 
     /**
-     * PartialObjectReportBuilder constructor.
-     *
-     * @param FieldChangeRepository $fieldChangeRepository
-     * @param FieldHelper           $fieldHelper
-     * @param ContactObjectHelper   $contactObjectHelper
-     * @param CompanyObjectHelper   $companyObjectHelper
-     * @param FieldBuilder          $fieldBuilder
+     * @var ObjectProvider
+     */
+    private $objectProvider;
+
+    /**
+     * @var EventDispatcherInterface
+     */
+    private $dispatcher;
+
+    /**
+     * @param FieldChangeRepository    $fieldChangeRepository
+     * @param FieldHelper              $fieldHelper
+     * @param FieldBuilder             $fieldBuilder
+     * @param ObjectProvider           $objectProvider
+     * @param EventDispatcherInterface $dispatcher
      */
     public function __construct(
         FieldChangeRepository $fieldChangeRepository,
         FieldHelper $fieldHelper,
-        ContactObjectHelper $contactObjectHelper,
-        CompanyObjectHelper $companyObjectHelper,
-        FieldBuilder $fieldBuilder
+        FieldBuilder $fieldBuilder,
+        ObjectProvider $objectProvider,
+        EventDispatcherInterface $dispatcher
     ) {
         $this->fieldChangeRepository = $fieldChangeRepository;
         $this->fieldHelper           = $fieldHelper;
-        $this->contactObjectHelper   = $contactObjectHelper;
-        $this->companyObjectHelper   = $companyObjectHelper;
         $this->fieldBuilder          = $fieldBuilder;
+        $this->objectProvider        = $objectProvider;
+        $this->dispatcher            = $dispatcher;
     }
 
     /**
@@ -137,7 +135,7 @@ class PartialObjectReportBuilder
                         __CLASS__.':'.__FUNCTION__
                     );
                 }
-            } catch (ObjectNotSupportedException $exception) {
+            } catch (ObjectNotFoundException $exception) {
                 DebugLogger::log(
                     MauticSyncDataExchange::NAME,
                     $exception->getMessage(),
@@ -153,9 +151,9 @@ class PartialObjectReportBuilder
      * @param array            $fieldChange
      * @param RequestObjectDAO $objectDAO
      *
-     * @throws ObjectNotSupportedException
+     * @throws ObjectNotFoundException
      */
-    private function processFieldChange(array $fieldChange, RequestObjectDAO $objectDAO)
+    private function processFieldChange(array $fieldChange, RequestObjectDAO $objectDAO): void
     {
         $objectId = (int) $fieldChange['object_id'];
 
@@ -164,7 +162,7 @@ class PartialObjectReportBuilder
             $this->lastProcessedTrackedId[$objectDAO->getObject()] = $objectId;
         }
 
-        $object           = $this->getObjectNameFromEntityName($fieldChange['object_type']);
+        $object           = $this->objectProvider->getObjectByEntityName($fieldChange['object_type'])->getName();
         $objectId         = (int) $fieldChange['object_id'];
         $modifiedDateTime = new \DateTime($fieldChange['modified_at'], new \DateTimeZone('UTC'));
 
@@ -196,6 +194,7 @@ class PartialObjectReportBuilder
      * @param RequestObjectDAO $requestObjectDAO
      *
      * @return array
+     *
      * @throws ObjectNotFoundException
      */
     private function findObjectsWithMissingFields(RequestObjectDAO $requestObjectDAO): array
@@ -224,25 +223,18 @@ class PartialObjectReportBuilder
             return [];
         }
 
-        switch ($objectName) {
-            case MauticSyncDataExchange::OBJECT_CONTACT:
-                $mauticObjects = $this->contactObjectHelper->findObjectsByIds(array_keys($this->objectsWithMissingFields));
-                break;
-            case MauticSyncDataExchange::OBJECT_COMPANY:
-                $mauticObjects = $this->companyObjectHelper->findObjectsByIds(array_keys($this->objectsWithMissingFields));
-                break;
-            default:
-                throw new ObjectNotFoundException($objectName);
-        }
+        $event = new InternalObjectFindEvent($this->objectProvider->getObjectByName($objectName));
+        $event->setIds(array_keys($this->objectsWithMissingFields));
+        $this->dispatcher->dispatch(IntegrationEvents::INTEGRATION_FIND_INTERNAL_RECORDS, $event);
 
-        return $mauticObjects;
+        return $event->getFoundObjects();
     }
 
     /**
      * @param array            $incompleteObjects
      * @param RequestObjectDAO $requestObjectDAO
      */
-    private function completeObjectsWithMissingFields(array $incompleteObjects, RequestObjectDAO $requestObjectDAO)
+    private function completeObjectsWithMissingFields(array $incompleteObjects, RequestObjectDAO $requestObjectDAO): void
     {
         foreach ($incompleteObjects as $incompleteObject) {
             $missingFields   = $this->objectsWithMissingFields[$incompleteObject['id']];
@@ -266,24 +258,6 @@ class PartialObjectReportBuilder
                     );
                 }
             }
-        }
-    }
-
-    /**
-     * @param string $entityName
-     *
-     * @return string
-     * @throws ObjectNotSupportedException
-     */
-    private function getObjectNameFromEntityName(string $entityName)
-    {
-        switch ($entityName) {
-            case Lead::class:
-                return MauticSyncDataExchange::OBJECT_CONTACT;
-            case Company::class:
-                return MauticSyncDataExchange::OBJECT_COMPANY;
-            default:
-                throw new ObjectNotSupportedException(MauticSyncDataExchange::NAME, $entityName);
         }
     }
 }

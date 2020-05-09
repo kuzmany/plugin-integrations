@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -9,12 +11,10 @@
  * @license     GNU/GPLv3 http://www.gnu.org/licenses/gpl-3.0.html
  */
 
-
 namespace MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Request;
 
-/**
- * Class RequestDAO
- */
+use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\InputOptionsDAO;
+
 class RequestDAO
 {
     /**
@@ -23,9 +23,9 @@ class RequestDAO
     private $syncIteration;
 
     /**
-     * @var bool
+     * @var InputOptionsDAO
      */
-    private $isFirstTimeSync;
+    private $inputOptionsDAO;
 
     /**
      * @var string
@@ -38,16 +38,14 @@ class RequestDAO
     private $objects = [];
 
     /**
-     * RequestDAO constructor.
-     *
-     * @param int    $syncIteration
-     * @param bool   $isFirstTimeSync
-     * @param string $syncToIntegration
+     * @param string          $syncToIntegration
+     * @param int             $syncIteration
+     * @param InputOptionsDAO $inputOptionsDAO
      */
-    public function __construct($syncIteration, $isFirstTimeSync, string $syncToIntegration)
+    public function __construct(string $syncToIntegration, int $syncIteration, InputOptionsDAO $inputOptionsDAO)
     {
         $this->syncIteration     = (int) $syncIteration;
-        $this->isFirstTimeSync   = $isFirstTimeSync;
+        $this->inputOptionsDAO   = $inputOptionsDAO;
         $this->syncToIntegration = $syncToIntegration;
     }
 
@@ -84,11 +82,11 @@ class RequestDAO
      */
     public function isFirstTimeSync(): bool
     {
-        return $this->isFirstTimeSync;
+        return $this->inputOptionsDAO->isFirstTimeSync();
     }
 
     /**
-     * The integration that will be synced to
+     * The integration that will be synced to.
      *
      * @return string
      */
@@ -98,7 +96,17 @@ class RequestDAO
     }
 
     /**
-     * Returns true if there are objects to sync
+     * Returns DAO object with all input options.
+     *
+     * @return InputOptionsDAO
+     */
+    public function getInputOptionsDAO(): InputOptionsDAO
+    {
+        return $this->inputOptionsDAO;
+    }
+
+    /**
+     * Returns true if there are objects to sync.
      *
      * @return bool
      */

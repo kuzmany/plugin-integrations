@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace MauticPlugin\IntegrationsBundle;
 
 final class IntegrationEvents
 {
     /**
-     * The mautic.integration.sync_post_execute_integration event is dispatched after a sync is executed
+     * The mautic.integration.sync_post_execute_integration event is dispatched after a sync is executed.
      *
      * The event listener receives a Mautic\IntegrationsBundle\Event\SyncEvent object.
      *
@@ -57,4 +59,76 @@ final class IntegrationEvents
      * @var string
      */
     public const INTEGRATION_KEYS_AFTER_DECRYPTION = 'mautic.integration.keys_after_decryption';
+
+    /**
+     * The mautic.integration.mautic_sync_field_load event is dispatched when Mautic sync fields are build.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\MauticSyncFieldsLoadEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_MAUTIC_SYNC_FIELDS_LOAD = 'mautic.integration.mautic_sync_field_load';
+
+    /**
+     * The mautic.integration.INTEGRATION_COLLECT_INTERNAL_OBJECTS event is dispatched when a list of Mautic internal objects is build.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\InternalObjectEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_COLLECT_INTERNAL_OBJECTS = 'mautic.integration.INTEGRATION_COLLECT_INTERNAL_OBJECTS';
+
+    /**
+     * The mautic.integration.INTEGRATION_CREATE_INTERNAL_OBJECTS event is dispatched when a list of Mautic internal objects should be created.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\InternalObjectCreateEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_CREATE_INTERNAL_OBJECTS = 'mautic.integration.INTEGRATION_CREATE_INTERNAL_OBJECTS';
+
+    /**
+     * The mautic.integration.INTEGRATION_UPDATE_INTERNAL_OBJECTS event is dispatched when a list of Mautic internal objects should be updated.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\InternalObjectUpdateEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_UPDATE_INTERNAL_OBJECTS = 'mautic.integration.INTEGRATION_UPDATE_INTERNAL_OBJECTS';
+
+    /**
+     * The mautic.integration.INTEGRATION_FIND_INTERNAL_RECORDS event is dispatched when a list of Mautic internal object records by ID is requested.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\InternalObjectFindEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_FIND_INTERNAL_RECORDS = 'mautic.integration.INTEGRATION_FIND_INTERNAL_RECORDS';
+
+    /**
+     * The mautic.integration.INTEGRATION_FIND_OWNER_IDS event is dispatched when a list of Mautic internal owner IDs by internal object ID is requested.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\InternalObjectFindEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_FIND_OWNER_IDS = 'mautic.integration.INTEGRATION_FIND_OWNER_IDS';
+
+    /**
+     * The mautic.integration.INTEGRATION_BUILD_INTERNAL_OBJECT_ROUTE event is dispatched when a Mautic internal object route is requested.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\InternalObjectOwnerEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_BUILD_INTERNAL_OBJECT_ROUTE = 'mautic.integration.INTEGRATION_BUILD_INTERNAL_OBJECT_ROUTE';
+
+    /**
+     * This event is dispatched when a tokens are being built to represent links to mapped integration objects.
+     *
+     * The event listener receives a MauticPlugin\IntegrationsBundle\Event\MappedIntegrationObjectTokenEvent instance.
+     *
+     * @var string
+     */
+    public const INTEGRATION_OBJECT_TOKEN_EVENT = 'mautic.integration.INTEGRATION_OBJECT_TOKEN_EVENT';
 }

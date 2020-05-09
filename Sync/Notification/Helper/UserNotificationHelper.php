@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -10,7 +12,6 @@
  */
 
 namespace MauticPlugin\IntegrationsBundle\Sync\Notification\Helper;
-
 
 use MauticPlugin\IntegrationsBundle\Sync\Notification\Writer;
 use Symfony\Component\Translation\TranslatorInterface;
@@ -26,6 +27,11 @@ class UserNotificationHelper
      * @var UserHelper
      */
     private $userHelper;
+
+    /**
+     * @var OwnerProvider
+     */
+    private $ownerProvider;
 
     /**
      * @var RouteHelper
@@ -48,23 +54,24 @@ class UserNotificationHelper
     private $objectDisplayName;
 
     /**
-     * UserSummaryNotificationHelper constructor.
-     *
      * @param Writer              $writer
      * @param UserHelper          $userHelper
+     * @param OwnerProvider       $ownerProvider
      * @param RouteHelper         $routeHelper
      * @param TranslatorInterface $translator
      */
     public function __construct(
         Writer $writer,
         UserHelper $userHelper,
+        OwnerProvider $ownerProvider,
         RouteHelper $routeHelper,
         TranslatorInterface $translator
     ) {
-        $this->writer      = $writer;
-        $this->userHelper  = $userHelper;
-        $this->routeHelper = $routeHelper;
-        $this->translator  = $translator;
+        $this->writer        = $writer;
+        $this->userHelper    = $userHelper;
+        $this->ownerProvider = $ownerProvider;
+        $this->routeHelper   = $routeHelper;
+        $this->translator    = $translator;
     }
 
     /**
@@ -72,7 +79,7 @@ class UserNotificationHelper
      * @param string $integrationDisplayName
      * @param string $objectDisplayName
      * @param string $mauticObject
-     * @param string $id
+     * @param int    $id
      * @param string $linkText
      *
      * @throws \Doctrine\ORM\ORMException
@@ -83,15 +90,16 @@ class UserNotificationHelper
         string $integrationDisplayName,
         string $objectDisplayName,
         string $mauticObject,
-        string $id,
+        int $id,
         string $linkText
-    ) {
+    ): void {
         $this->integrationDisplayName = $integrationDisplayName;
         $this->objectDisplayName      = $objectDisplayName;
         $link                         = $this->routeHelper->getLink($mauticObject, $id, $linkText);
+        $owners                       = $this->ownerProvider->getOwnersForObjectIds($mauticObject, [$id]);
 
-        if ($owner = $this->userHelper->getOwner($mauticObject, $id)) {
-            $this->writeMessage($message, $link, $owner);
+        if (!empty($owners[0]['owner_id'])) {
+            $this->writeMessage($message, $link, $owners[0]['owner_id']);
 
             return;
         }
@@ -109,21 +117,21 @@ class UserNotificationHelper
      *
      * @throws \Doctrine\ORM\ORMException
      */
-    private function writeMessage(string $message, string $link, int $userId)
+    private function writeMessage(string $message, string $link, int $userId): void
     {
         $this->writer->writeUserNotification(
             $this->translator->trans(
                 'mautic.integration.sync.user_notification.header',
                 [
                     '%integration%' => $this->integrationDisplayName,
-                    '%object%'      => $this->objectDisplayName
+                    '%object%'      => $this->objectDisplayName,
                 ]
             ),
             $this->translator->trans(
                 'mautic.integration.sync.user_notification.sync_error',
                 [
-                    '%name%'   => $link,
-                    '%message%' => $message
+                    '%name%'    => $link,
+                    '%message%' => $message,
                 ]
             ),
             $userId

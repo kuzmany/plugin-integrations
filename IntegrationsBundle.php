@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic, Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -11,21 +13,19 @@
 
 namespace MauticPlugin\IntegrationsBundle;
 
-use Mautic\PluginBundle\Bundle\PluginBundleBase;
+use MauticPlugin\IntegrationsBundle\Bundle\AbstractPluginBundle;
 use MauticPlugin\IntegrationsBundle\DependencyInjection\Compiler\AuthenticationIntegrationPass;
 use MauticPlugin\IntegrationsBundle\DependencyInjection\Compiler\ConfigIntegrationPass;
 use MauticPlugin\IntegrationsBundle\DependencyInjection\Compiler\IntegrationsPass;
 use MauticPlugin\IntegrationsBundle\DependencyInjection\Compiler\SyncIntegrationsPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
-/**
- * Class IntegrationsBundle
- *
- * @package MauticPlugin\IntegrationsBundle
- */
-class IntegrationsBundle extends PluginBundleBase
+class IntegrationsBundle extends AbstractPluginBundle
 {
-    public function build(ContainerBuilder $container)
+    /**
+     * @param ContainerBuilder $container
+     */
+    public function build(ContainerBuilder $container): void
     {
         $container->addCompilerPass(new IntegrationsPass());
         $container->addCompilerPass(new AuthenticationIntegrationPass());

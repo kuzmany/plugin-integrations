@@ -15,15 +15,19 @@ namespace MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Helper;
 
 use Mautic\ChannelBundle\Helper\ChannelListHelper;
 use Mautic\LeadBundle\Model\FieldModel;
-use Mautic\LeadBundle\Entity\Company;
-use Mautic\LeadBundle\Entity\Lead;
 use Mautic\LeadBundle\Model\LeadModel;
+use MauticPlugin\IntegrationsBundle\Event\MauticSyncFieldsLoadEvent;
+use MauticPlugin\IntegrationsBundle\IntegrationEvents;
+use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Report\FieldDAO;
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Value\EncodedValueDAO;
 use MauticPlugin\IntegrationsBundle\Sync\DAO\Value\NormalizedValueDAO;
+use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotFoundException;
 use MauticPlugin\IntegrationsBundle\Sync\Exception\ObjectNotSupportedException;
+use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\Object\Contact;
+use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\Internal\ObjectProvider;
 use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\MauticSyncDataExchange;
-use MauticPlugin\IntegrationsBundle\Sync\DAO\Sync\Report\FieldDAO;
 use MauticPlugin\IntegrationsBundle\Sync\VariableExpresser\VariableExpresserHelperInterface;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Translation\TranslatorInterface;
 
 class FieldHelper
@@ -59,19 +63,37 @@ class FieldHelper
     private $syncFields = [];
 
     /**
-     * FieldHelper constructor.
-     *
+     * @var EventDispatcher
+     */
+    private $eventDispatcher;
+
+    /**
+     * @var ObjectProvider
+     */
+    private $objectProvider;
+
+    /**
      * @param FieldModel                       $fieldModel
      * @param VariableExpresserHelperInterface $variableExpresserHelper
      * @param ChannelListHelper                $channelListHelper
      * @param TranslatorInterface              $translator
+     * @param EventDispatcherInterface         $eventDispatcher
+     * @param ObjectProvider                   $objectProvider
      */
-    public function __construct(FieldModel $fieldModel, VariableExpresserHelperInterface $variableExpresserHelper, ChannelListHelper $channelListHelper, TranslatorInterface $translator)
-    {
+    public function __construct(
+        FieldModel $fieldModel,
+        VariableExpresserHelperInterface $variableExpresserHelper,
+        ChannelListHelper $channelListHelper,
+        TranslatorInterface $translator,
+        EventDispatcherInterface $eventDispatcher,
+        ObjectProvider $objectProvider
+    ) {
         $this->fieldModel              = $fieldModel;
         $this->variableExpresserHelper = $variableExpresserHelper;
         $this->channelListHelper       = $channelListHelper;
         $this->translator              = $translator;
+        $this->eventDispatcher         = $eventDispatcher;
+        $this->objectProvider          = $objectProvider;
     }
 
     /**
@@ -109,22 +131,20 @@ class FieldHelper
         }
     }
 
-
     /**
      * @param string $objectName
      *
      * @return string
+     *
      * @throws ObjectNotSupportedException
      */
     public function getFieldObjectName(string $objectName): string
     {
-        switch ($objectName) {
-            case MauticSyncDataExchange::OBJECT_CONTACT:
-                return Lead::class;
-            case MauticSyncDataExchange::OBJECT_COMPANY:
-                return Company::class;
-            default:
-                throw new ObjectNotSupportedException(MauticSyncDataExchange::NAME, $objectName);
+        try {
+            return $this->objectProvider->getObjectByName($objectName)->getEntityName();
+        } catch (ObjectNotFoundException $e) {
+            // Throwing different exception to keep BC.
+            throw new ObjectNotSupportedException(MauticSyncDataExchange::NAME, $objectName);
         }
     }
 
@@ -156,20 +176,25 @@ class FieldHelper
         if (isset($this->syncFields[$objectName])) {
             return $this->syncFields[$objectName];
         }
-        
+
         $this->syncFields[$objectName] = $this->fieldModel->getFieldList(
             false,
             true,
             [
                 'isPublished' => true,
-                'object'      => $objectName
+                'object'      => $objectName,
             ]
         );
+
+        // Dispatch event to add possibility to add field from some listener
+        $event                                     = new MauticSyncFieldsLoadEvent($objectName, $this->syncFields[$objectName]);
+        $event                                     = $this->eventDispatcher->dispatch(IntegrationEvents::INTEGRATION_MAUTIC_SYNC_FIELDS_LOAD, $event);
+        $this->syncFields[$event->getObjectName()] = $event->getFields();
 
         // Add ID as a read only field
         $this->syncFields[$objectName]['mautic_internal_id'] = $this->translator->trans('mautic.core.id');
 
-        if (MauticSyncDataExchange::OBJECT_CONTACT !== $objectName) {
+        if (Contact::NAME !== $objectName) {
             uasort($this->syncFields[$objectName], 'strnatcmp');
 
             return $this->syncFields[$objectName];
@@ -202,14 +227,19 @@ class FieldHelper
             [
                 'isPublished' => true,
                 'isRequired'  => true,
-                'object'      => $object
+                'object'      => $object,
             ]
         );
+
+        // We don't use unique identifier field for companies.
+        if ('company' === $object) {
+            return $requiredFields;
+        }
 
         $uniqueIdentifierFields = $this->fieldModel->getUniqueIdentifierFields(
             [
                 'isPublished' => true,
-                'object'      => $object
+                'object'      => $object,
             ]
         );
 

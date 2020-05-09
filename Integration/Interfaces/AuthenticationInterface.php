@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * @copyright   2018 Mautic, Inc. All rights reserved
  * @author      Mautic, Inc.
@@ -11,21 +13,24 @@
 
 namespace MauticPlugin\IntegrationsBundle\Integration\Interfaces;
 
-use MauticPlugin\IntegrationsBundle\Auth\Exception\FailedToAuthenticateException;
+use Symfony\Component\HttpFoundation\Request;
 
 interface AuthenticationInterface extends IntegrationInterface
 {
     /**
-     * Returns true if the integration has already been authorized with the 3rd party service
+     * Returns true if the integration has already been authorized with the 3rd party service.
      *
      * @return bool
      */
     public function isAuthenticated(): bool;
 
     /**
-     * Authenticate the integration with the 3rd party service
+     * This would be where one will use a client to store access tokens such as.
      *
-     * @throws FailedToAuthenticateException
+     *
+     * @param Request $request
+     *
+     * @return string message to render if succeeded
      */
-    public function authenticateIntegration(): bool;
+    public function authenticateIntegration(Request $request): string;
 }

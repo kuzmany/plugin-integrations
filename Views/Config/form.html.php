@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 /*
  * @copyright   2018 Mautic, Inc. All rights reserved
@@ -9,31 +9,16 @@
  * @license     GNU/GPLv3 http://www.gnu.org/licenses/gpl-3.0.html
  */
 
-use MauticPlugin\IntegrationsBundle\Integration\Interfaces\ConfigFormFeaturesInterface;
-use MauticPlugin\IntegrationsBundle\Integration\Interfaces\ConfigFormSyncInterface;
-use MauticPlugin\IntegrationsBundle\Integration\Interfaces\ConfigFormFeatureSettingsInterface;
-use MauticPlugin\IntegrationsBundle\Integration\Interfaces\ConfigFormAuthInterface;
-
 echo $view['assets']->includeScript('plugins/IntegrationsBundle/Assets/js/integrations.js', 'integrationsConfigOnLoad', 'integrationsConfigOnLoad');
 
 /** @var \MauticPlugin\IntegrationsBundle\Integration\Interfaces\IntegrationInterface $integrationObject Set through buildView */
-
 $activeTab = $activeTab ?: 'details-container';
-
-$showFeaturesTab =
-    $integrationObject instanceof ConfigFormFeaturesInterface ||
-    $integrationObject instanceof ConfigFormSyncInterface ||
-    $integrationObject instanceof ConfigFormFeatureSettingsInterface;
-$hasFeatureErrors =
-    ($integrationObject instanceof ConfigFormFeatureSettingsInterface && $view['form']->containsErrors($form['featureSettings']['integration'])) ||
-    (isset($form['featureSettings']['sync']['integration']) && $view['form']->containsErrors($form['featureSettings']['sync']['integration']));
-$hasAuthErrors = $integrationObject instanceof ConfigFormAuthInterface && $view['form']->containsErrors($form['apiKeys']);
 ?>
 
 <?php echo $view['form']->start($form); ?>
 <ul class="nav nav-tabs">
     <!-- Enabled\Auth -->
-    <li class="<?php if ($activeTab == 'details-container'): echo 'active'; endif; ?> " id="details-tab">
+    <li class="<?php if ('details-container' === $activeTab): echo 'active'; endif; ?> " id="details-tab">
         <a href="#details-container" role="tab" data-toggle="tab">
             <?php echo $view['translator']->trans('mautic.plugin.integration.tab.details'); ?>
             <?php if ($hasAuthErrors): ?>
@@ -57,7 +42,7 @@ $hasAuthErrors = $integrationObject instanceof ConfigFormAuthInterface && $view[
     <!-- Features -->
 
     <!-- Field Mapping -->
-    <?php if ($integrationObject instanceof ConfigFormSyncInterface): ?>
+    <?php if ($useSyncFeatures): ?>
     <?php $objects = $integrationObject->getSyncConfigObjects(); ?>
         <?php foreach ($form['featureSettings']['sync']['fieldMappings'] as $object => $objectFieldMapping): ?>
         <li class="<?php if ($activeTab == "field-mapping-{$object}"): echo 'active'; endif; ?> " id="fields-<?php echo $object; ?>-tab">
@@ -75,26 +60,48 @@ $hasAuthErrors = $integrationObject instanceof ConfigFormAuthInterface && $view[
 
 <div class="tab-content pa-md bg-white">
     <!-- Enabled\Auth -->
-    <div class="tab-pane fade <?php if ($activeTab == 'details-container'): echo 'in active'; endif; ?> bdr-w-0" id="details-container">
+    <div class="tab-pane fade <?php if ('details-container' == $activeTab): echo 'in active'; endif; ?> bdr-w-0" id="details-container">
         <?php echo $view['form']->row($form['isPublished']); ?>
         <hr />
         <?php echo $view['form']->row($form['apiKeys']); ?>
+        <?php if ($useAuthorizationUrl): ?>
+        <div class="alert alert-warning">
+            <?php echo $view['translator']->trans($integrationObject->getCallbackHelpMessageTranslationKey()); ?>
+        </div>
+        <?php if ($callbackUrl): ?>
+        <div class="well well-sm">
+            <?php echo $view['translator']->trans('mautic.integration.callbackuri'); ?><br/>
+            <input type="text" name="callback_url" readonly onclick="this.setSelectionRange(0, this.value.length);" value="<?php echo $view->escape($callbackUrl); ?>" class="form-control"/>
+        </div>
+        <?php endif; ?>
+        <div class="row">
+            <div class="col-xs-12 text-center">
+                <input type="hidden" id="integration_details_in_auth" name="integration_details[in_auth]" autocomplete="false">
+                <button type="button" id="integration_details_authButton" name="integration_details[authButton]" class="btn btn-success btn-lg" onclick="Mautic.authorizeIntegration()">
+                    <i class="fa fa-key "></i>
+                    <?php if ($integrationObject->isAuthorized()): ?>
+                        <?php echo $view['translator']->trans('mautic.integration.form.reauthorize'); ?>
+                    <?php else: ?>
+                        <?php echo $view['translator']->trans('mautic.integration.form.authorize'); ?>
+                    <?php endif; ?>
+                </button>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
     <!-- Enabled\Auth -->
 
     <!-- Features -->
     <?php if ($showFeaturesTab): ?>
-    <div class="tab-pane fade <?php if ($activeTab == 'features-container'): echo 'in active'; endif; ?> bdr-w-0" id="features-container">
+    <div class="tab-pane fade <?php if ('features-container' == $activeTab): echo 'in active'; endif; ?> bdr-w-0" id="features-container">
         <?php
-        if ($integrationObject instanceof ConfigFormFeaturesInterface):
-            echo $view['form']->row($form['supportedFeatures']);
+        echo $view['form']->rowIfExists($form, 'supportedFeatures');
 
-            if ($integrationObject instanceof ConfigFormFeatureSettingsInterface || $integrationObject instanceof ConfigFormSyncInterface):
-                echo "<hr />";
-            endif;
+        if ($useFeatureSettings || $useSyncFeatures):
+            echo '<hr />';
         endif;
 
-        if ($integrationObject instanceof ConfigFormSyncInterface):
+        if ($useSyncFeatures):
             echo $view['form']->row($form['featureSettings']['sync']['objects']);
             // @todo echo $view['form']->row($form['featureSettings']['sync']['updateBlanks']);
 
@@ -102,12 +109,12 @@ $hasAuthErrors = $integrationObject instanceof ConfigFormAuthInterface && $view[
                 echo $view['form']->row($form['featureSettings']['sync']['integration']);
             endif;
 
-            if ($integrationObject instanceof ConfigFormFeatureSettingsInterface):
-                echo "<hr />";
+            if ($useFeatureSettings):
+                echo '<hr />';
             endif;
         endif;
 
-        if ($integrationObject instanceof ConfigFormFeatureSettingsInterface):
+        if ($useFeatureSettings):
             echo $view['form']->row($form['featureSettings']['integration']);
         endif;
 
@@ -117,7 +124,7 @@ $hasAuthErrors = $integrationObject instanceof ConfigFormAuthInterface && $view[
     <!-- Features -->
 
     <!-- Field Mapping -->
-    <?php if ($integrationObject instanceof ConfigFormSyncInterface): ?>
+    <?php if ($useSyncFeatures): ?>
     <?php foreach ($form['featureSettings']['sync']['fieldMappings'] as $object => $objectFieldMapping): ?>
     <div class="tab-pane fade <?php if ($activeTab == "field-mapping-{$object}"): echo 'in active'; endif; ?> bdr-w-0" id="<?php echo "field-mappings-{$object}"; ?>-container">
         <div class="has-error">
