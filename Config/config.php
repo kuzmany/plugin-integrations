@@ -54,6 +54,7 @@ return [
                 'class'     => \MauticPlugin\IntegrationsBundle\EventListener\LeadSubscriber::class,
                 'arguments' => [
                     'mautic.integrations.repository.field_change',
+                    'mautic.integrations.repository.object_mapping',
                     'mautic.integrations.helper.variable_expresser',
                     'mautic.integrations.helper.sync_integrations',
                 ],

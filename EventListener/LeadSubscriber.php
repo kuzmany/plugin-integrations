@@ -20,6 +20,7 @@ use Mautic\LeadBundle\Event as Events;
 use Mautic\LeadBundle\LeadEvents;
 use MauticPlugin\IntegrationsBundle\Entity\FieldChange;
 use MauticPlugin\IntegrationsBundle\Entity\FieldChangeRepository;
+use MauticPlugin\IntegrationsBundle\Entity\ObjectMappingRepository;
 use MauticPlugin\IntegrationsBundle\Sync\SyncDataExchange\MauticSyncDataExchange;
 use MauticPlugin\IntegrationsBundle\Sync\VariableExpresser\VariableExpresserHelperInterface;
 use MauticPlugin\IntegrationsBundle\Helper\SyncIntegrationsHelper;
@@ -45,18 +46,26 @@ class LeadSubscriber extends CommonSubscriber
     private $syncIntegrationsHelper;
 
     /**
+     * @var ObjectMappingRepository
+     */
+    private $objectMappingRepository;
+
+    /**
      * LeadSubscriber constructor.
      *
      * @param FieldChangeRepository            $fieldChangeRepo
+     * @param ObjectMappingRepository          $objectMappingRepository
      * @param VariableExpresserHelperInterface $variableExpressor
      * @param SyncIntegrationsHelper           $syncIntegrationsHelper
      */
     public function __construct(
         FieldChangeRepository $fieldChangeRepo,
+        ObjectMappingRepository $objectMappingRepository,
         VariableExpresserHelperInterface $variableExpressor,
         SyncIntegrationsHelper $syncIntegrationsHelper
     ) {
         $this->fieldChangeRepo        = $fieldChangeRepo;
+        $this->objectMappingRepository = $objectMappingRepository;
         $this->variableExpressor      = $variableExpressor;
         $this->syncIntegrationsHelper = $syncIntegrationsHelper;
     }
@@ -124,6 +133,7 @@ class LeadSubscriber extends CommonSubscriber
     public function onLeadPostDelete(Events\LeadEvent $event): void
     {
         $this->fieldChangeRepo->deleteEntitiesForObject((int) $event->getLead()->deletedId, Lead::class);
+        $this->objectMappingRepository->deleteEntitiesForObject((int) $event->getLead()->deletedId, MauticSyncDataExchange::OBJECT_CONTACT);
     }
 
     /**
@@ -160,6 +170,7 @@ class LeadSubscriber extends CommonSubscriber
     public function onCompanyPostDelete(Events\CompanyEvent $event): void
     {
         $this->fieldChangeRepo->deleteEntitiesForObject((int) $event->getCompany()->deletedId, Company::class);
+        $this->objectMappingRepository->deleteEntitiesForObject((int) $event->getLead()->deletedId, MauticSyncDataExchange::OBJECT_COMPANY);
     }
 
     /**
